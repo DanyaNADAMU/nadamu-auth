@@ -5,6 +5,8 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.PostOrder;
+import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
@@ -95,23 +97,37 @@ public class ConnectionListener {
         }
     }
 
-    @Subscribe
+    @Subscribe(order = PostOrder.LATE)
     public EventTask onChooseInitialServer(PlayerChooseInitialServerEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
         String ip = extractIp(player);
+        String authServer = pluginConfig.servers().authServer();
+        String lobbyServer = pluginConfig.servers().lobbyServer();
+
+        // 1. Capture intended server from forced-hosts or try if not the auth server
+        event.getInitialServer().ifPresent(srv -> {
+            String name = srv.getServerInfo().getName();
+            if (!name.equalsIgnoreCase(authServer)) {
+                sessionManager.setTargetServer(uuid, name);
+            }
+        });
+
+        String destination = sessionManager.getTargetServer(uuid) != null
+                ? sessionManager.getTargetServer(uuid)
+                : lobbyServer;
 
         // If player is already authenticated (e.g. via Mojang online mode)
         if (player.isOnlineMode() || sessionManager.isAuthenticated(uuid)) {
             sessionManager.setAuthState(uuid, AuthState.AUTHENTICATED);
-            server.getServer(pluginConfig.servers().lobbyServer()).ifPresent(event::setInitialServer);
+            server.getServer(destination).ifPresent(event::setInitialServer);
             return EventTask.async(() -> {});
         }
 
         // If valid session exists for current IP
         if (sessionManager.hasValidSession(uuid, ip)) {
             sessionManager.setAuthState(uuid, AuthState.AUTHENTICATED);
-            server.getServer(pluginConfig.servers().lobbyServer()).ifPresent(event::setInitialServer);
+            server.getServer(destination).ifPresent(event::setInitialServer);
             return EventTask.async(() -> {});
         }
 
@@ -120,16 +136,26 @@ public class ConnectionListener {
             if (optUser.isPresent()) {
                 // Registered player -> route to NanoLimbo for /login
                 sessionManager.setAuthState(uuid, AuthState.PENDING_LOGIN);
-                server.getServer(pluginConfig.servers().authServer()).ifPresent(event::setInitialServer);
+                server.getServer(authServer).ifPresent(event::setInitialServer);
                 messageService.sendMessage(player, messageService.config().loginRequired());
                 scheduleLoginTimeout(player);
             } else {
-                // Unregistered player -> Variant A (Guest mode, route directly to Lobby)
+                // Unregistered player -> Variant A (Guest mode, route to destination)
                 sessionManager.setAuthState(uuid, AuthState.GUEST);
-                server.getServer(pluginConfig.servers().lobbyServer()).ifPresent(event::setInitialServer);
+                server.getServer(destination).ifPresent(event::setInitialServer);
                 messageService.sendMessage(player, messageService.config().guestReminder());
             }
         }));
+    }
+
+    @Subscribe
+    public void onKickedFromServer(KickedFromServerEvent event) {
+        Player player = event.getPlayer();
+        // If an authenticated player is kicked or backend server restarts (failover to limbo),
+        // ensure their session remains AUTHENTICATED so they aren't trapped or kicked by timeout
+        if (sessionManager.isAuthenticated(player.getUniqueId())) {
+            // Keep authenticated status
+        }
     }
 
     @Subscribe

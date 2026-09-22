@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SessionManager {
 
     private final Map<UUID, AuthState> activeStates = new ConcurrentHashMap<>();
+    private final Map<UUID, String> targetServers = new ConcurrentHashMap<>();
     private final Cache<UUID, String> ipSessions;
     private final Map<String, PremiumVerification> pendingPremium = new ConcurrentHashMap<>();
     private final Set<String> failedPremiumNotices = ConcurrentHashMap.newKeySet();
@@ -36,8 +37,19 @@ public class SessionManager {
         return activeStates.get(uuid) == AuthState.AUTHENTICATED;
     }
 
+    public void setTargetServer(UUID uuid, String serverName) {
+        if (serverName != null) {
+            targetServers.put(uuid, serverName);
+        }
+    }
+
+    public String getTargetServer(UUID uuid) {
+        return targetServers.get(uuid);
+    }
+
     public void removePlayer(UUID uuid) {
         activeStates.remove(uuid);
+        targetServers.remove(uuid);
     }
 
     public void saveSession(UUID uuid, String ip) {

@@ -62,11 +62,12 @@ public class LoginCommand implements SimpleCommand {
                 messageService.sendMessage(player, messageService.config().loginSuccess());
 
                 String authServer = pluginConfig.servers().authServer();
-                String lobbyServer = pluginConfig.servers().lobbyServer();
+                String targetServerName = sessionManager.getTargetServer(player.getUniqueId());
+                String destination = (targetServerName != null) ? targetServerName : pluginConfig.servers().lobbyServer();
 
-                // Only transfer if authServer and lobbyServer are distinct servers
-                if (!authServer.equalsIgnoreCase(lobbyServer)) {
-                    server.getServer(lobbyServer).ifPresent(targetServer -> {
+                // Only transfer if authServer and destination are distinct servers
+                if (!authServer.equalsIgnoreCase(destination)) {
+                    server.getServer(destination).ifPresent(targetServer -> {
                         player.createConnectionRequest(targetServer).connectWithIndication();
                     });
                 }

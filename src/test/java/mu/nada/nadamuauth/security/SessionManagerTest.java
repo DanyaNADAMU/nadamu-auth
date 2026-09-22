@@ -31,8 +31,12 @@ class SessionManagerTest {
         assertEquals(AuthState.AUTHENTICATED, sessionManager.getAuthState(uuid));
         assertTrue(sessionManager.isAuthenticated(uuid));
 
+        sessionManager.setTargetServer(uuid, "pvp");
+        assertEquals("pvp", sessionManager.getTargetServer(uuid));
+
         sessionManager.removePlayer(uuid);
         assertEquals(AuthState.GUEST, sessionManager.getAuthState(uuid));
+        assertNull(sessionManager.getTargetServer(uuid));
     }
 
     @Test
