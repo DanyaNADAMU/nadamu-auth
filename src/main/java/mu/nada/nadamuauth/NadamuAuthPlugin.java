@@ -21,6 +21,7 @@ import mu.nada.nadamuauth.security.RateLimiter;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.service.AuthService;
 import mu.nada.nadamuauth.service.LocalAuthService;
+import mu.nada.nadamuauth.service.RoutingService;
 import mu.nada.nadamuauth.storage.DatabaseManager;
 import mu.nada.nadamuauth.storage.UserRepository;
 import mu.nada.nadamuauth.util.MessageService;
@@ -96,7 +97,10 @@ public class NadamuAuthPlugin {
                 logger
         );
 
-        // 5. Register event listeners
+        // 5. Routing service
+        RoutingService routingService = new RoutingService(server, config, sessionManager);
+
+        // 6. Register event listeners
         EventManager eventManager = server.getEventManager();
         eventManager.register(this, new ConnectionListener(
                 this,
@@ -104,6 +108,7 @@ public class NadamuAuthPlugin {
                 config,
                 userRepository,
                 sessionManager,
+                routingService,
                 messageService
         ));
         eventManager.register(this, new RestrictionListener(
@@ -112,13 +117,13 @@ public class NadamuAuthPlugin {
                 messageService
         ));
 
-        // 6. Register proxy commands
-        registerCommands(config);
+        // 7. Register proxy commands
+        registerCommands(config, routingService);
 
-        // 7. Validate configured servers
+        // 8. Validate configured servers
         validateServerConfig(config);
 
-        // 8. Background reminder task (for guests and pending logins)
+        // 9. Background reminder task (for guests and pending logins)
         int reminderInterval = config.guest().reminderIntervalSeconds();
         server.getScheduler()
                 .buildTask(this, new AuthReminderTask(server, sessionManager, messageService))
@@ -128,14 +133,14 @@ public class NadamuAuthPlugin {
         logger.info("NadamuAuth has been initialized successfully!");
     }
 
-    private void registerCommands(PluginConfig config) {
+    private void registerCommands(PluginConfig config, RoutingService routingService) {
         CommandManager cm = server.getCommandManager();
 
         CommandMeta loginMeta = cm.metaBuilder("login").aliases("l").plugin(this).build();
-        cm.register(loginMeta, new LoginCommand(server, authService, sessionManager, rateLimiter, config, messageService));
+        cm.register(loginMeta, new LoginCommand(authService, sessionManager, rateLimiter, routingService, messageService));
 
         CommandMeta registerMeta = cm.metaBuilder("register").aliases("reg").plugin(this).build();
-        cm.register(registerMeta, new RegisterCommand(server, authService, sessionManager, config, messageService));
+        cm.register(registerMeta, new RegisterCommand(authService, sessionManager, routingService, config, messageService));
 
         CommandMeta changePasswordMeta = cm.metaBuilder("changepassword").plugin(this).build();
         cm.register(changePasswordMeta, new ChangePasswordCommand(authService, sessionManager, messageService));

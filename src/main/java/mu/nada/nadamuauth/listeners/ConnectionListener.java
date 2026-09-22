@@ -10,10 +10,12 @@ import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.PlayerChooseInitialServerEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.scheduler.ScheduledTask;
 import mu.nada.nadamuauth.NadamuAuthPlugin;
 import mu.nada.nadamuauth.config.PluginConfig;
 import mu.nada.nadamuauth.model.AuthState;
 import mu.nada.nadamuauth.security.SessionManager;
+import mu.nada.nadamuauth.service.RoutingService;
 import mu.nada.nadamuauth.storage.UserRepository;
 import mu.nada.nadamuauth.util.MessageService;
 
@@ -28,6 +30,7 @@ public class ConnectionListener {
     private final PluginConfig pluginConfig;
     private final UserRepository userRepository;
     private final SessionManager sessionManager;
+    private final RoutingService routingService;
     private final MessageService messageService;
 
     public ConnectionListener(NadamuAuthPlugin plugin,
@@ -35,12 +38,14 @@ public class ConnectionListener {
                               PluginConfig pluginConfig,
                               UserRepository userRepository,
                               SessionManager sessionManager,
+                              RoutingService routingService,
                               MessageService messageService) {
         this.plugin = plugin;
         this.server = server;
         this.pluginConfig = pluginConfig;
         this.userRepository = userRepository;
         this.sessionManager = sessionManager;
+        this.routingService = routingService;
         this.messageService = messageService;
     }
 
@@ -113,9 +118,7 @@ public class ConnectionListener {
             }
         });
 
-        String destination = sessionManager.getTargetServer(uuid) != null
-                ? sessionManager.getTargetServer(uuid)
-                : lobbyServer;
+        String destination = routingService.getInitialDestination(uuid);
 
         // If player is already authenticated (e.g. via Mojang online mode)
         if (player.isOnlineMode() || sessionManager.isAuthenticated(uuid)) {
@@ -165,11 +168,12 @@ public class ConnectionListener {
 
     private void scheduleLoginTimeout(Player player) {
         int timeout = pluginConfig.security().loginTimeoutSeconds();
-        server.getScheduler().buildTask(plugin, () -> {
+        ScheduledTask task = server.getScheduler().buildTask(plugin, () -> {
             if (player.isActive() && sessionManager.getAuthState(player.getUniqueId()) == AuthState.PENDING_LOGIN) {
                 player.disconnect(messageService.parse(messageService.config().timeoutKick()));
             }
         }).delay(Duration.ofSeconds(timeout)).schedule();
+        sessionManager.setTimeoutTask(player.getUniqueId(), task);
     }
 
     private String extractIp(Player player) {

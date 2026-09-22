@@ -8,6 +8,7 @@ import mu.nada.nadamuauth.security.RateLimiter;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.service.AuthResult;
 import mu.nada.nadamuauth.service.AuthService;
+import mu.nada.nadamuauth.service.RoutingService;
 import mu.nada.nadamuauth.util.MessageService;
 
 import java.net.InetSocketAddress;
@@ -15,24 +16,21 @@ import java.util.Map;
 
 public class LoginCommand implements SimpleCommand {
 
-    private final ProxyServer server;
     private final AuthService authService;
     private final SessionManager sessionManager;
     private final RateLimiter rateLimiter;
-    private final PluginConfig pluginConfig;
+    private final RoutingService routingService;
     private final MessageService messageService;
 
-    public LoginCommand(ProxyServer server,
-                        AuthService authService,
+    public LoginCommand(AuthService authService,
                         SessionManager sessionManager,
                         RateLimiter rateLimiter,
-                        PluginConfig pluginConfig,
+                        RoutingService routingService,
                         MessageService messageService) {
-        this.server = server;
         this.authService = authService;
         this.sessionManager = sessionManager;
         this.rateLimiter = rateLimiter;
-        this.pluginConfig = pluginConfig;
+        this.routingService = routingService;
         this.messageService = messageService;
     }
 
@@ -60,17 +58,7 @@ public class LoginCommand implements SimpleCommand {
         authService.authenticate(player, password).thenAccept(result -> {
             if (result == AuthResult.SUCCESS) {
                 messageService.sendMessage(player, messageService.config().loginSuccess());
-
-                String authServer = pluginConfig.servers().authServer();
-                String targetServerName = sessionManager.getTargetServer(player.getUniqueId());
-                String destination = (targetServerName != null) ? targetServerName : pluginConfig.servers().lobbyServer();
-
-                // Only transfer if authServer and destination are distinct servers
-                if (!authServer.equalsIgnoreCase(destination)) {
-                    server.getServer(destination).ifPresent(targetServer -> {
-                        player.createConnectionRequest(targetServer).connectWithIndication();
-                    });
-                }
+                routingService.routeAfterAuth(player);
             } else if (result == AuthResult.INVALID_CREDENTIALS) {
                 int left = rateLimiter.getRemainingAttempts(ip, player.getUsername());
                 messageService.sendMessage(player, messageService.config().wrongPassword(), Map.of("left", String.valueOf(left)));

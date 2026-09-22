@@ -2,6 +2,7 @@ package mu.nada.nadamuauth.security;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.velocitypowered.api.scheduler.ScheduledTask;
 import mu.nada.nadamuauth.model.AuthState;
 
 import java.time.Duration;
@@ -15,6 +16,7 @@ public class SessionManager {
 
     private final Map<UUID, AuthState> activeStates = new ConcurrentHashMap<>();
     private final Map<UUID, String> targetServers = new ConcurrentHashMap<>();
+    private final Map<UUID, ScheduledTask> timeoutTasks = new ConcurrentHashMap<>();
     private final Cache<UUID, String> ipSessions;
     private final Map<String, PremiumVerification> pendingPremium = new ConcurrentHashMap<>();
     private final Set<String> failedPremiumNotices = ConcurrentHashMap.newKeySet();
@@ -27,6 +29,9 @@ public class SessionManager {
 
     public void setAuthState(UUID uuid, AuthState state) {
         activeStates.put(uuid, state);
+        if (state == AuthState.AUTHENTICATED) {
+            cancelTimeoutTask(uuid);
+        }
     }
 
     public AuthState getAuthState(UUID uuid) {
@@ -35,6 +40,20 @@ public class SessionManager {
 
     public boolean isAuthenticated(UUID uuid) {
         return activeStates.get(uuid) == AuthState.AUTHENTICATED;
+    }
+
+    public void setTimeoutTask(UUID uuid, ScheduledTask task) {
+        ScheduledTask previous = timeoutTasks.put(uuid, task);
+        if (previous != null) {
+            previous.cancel();
+        }
+    }
+
+    public void cancelTimeoutTask(UUID uuid) {
+        ScheduledTask task = timeoutTasks.remove(uuid);
+        if (task != null) {
+            task.cancel();
+        }
     }
 
     public void setTargetServer(UUID uuid, String serverName) {
@@ -50,6 +69,7 @@ public class SessionManager {
     public void removePlayer(UUID uuid) {
         activeStates.remove(uuid);
         targetServers.remove(uuid);
+        cancelTimeoutTask(uuid);
     }
 
     public void saveSession(UUID uuid, String ip) {
