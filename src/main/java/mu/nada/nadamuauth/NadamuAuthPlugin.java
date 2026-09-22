@@ -139,7 +139,7 @@ public class NadamuAuthPlugin {
         CommandMeta loginMeta = cm.metaBuilder("login").aliases("l").plugin(this).build();
         cm.register(loginMeta, new LoginCommand(authService, sessionManager, rateLimiter, routingService, messageService));
 
-        CommandMeta registerMeta = cm.metaBuilder("register").aliases("reg").plugin(this).build();
+        CommandMeta registerMeta = cm.metaBuilder("register").aliases("r").plugin(this).build();
         cm.register(registerMeta, new RegisterCommand(authService, sessionManager, routingService, config, messageService));
 
         CommandMeta changePasswordMeta = cm.metaBuilder("changepassword").plugin(this).build();

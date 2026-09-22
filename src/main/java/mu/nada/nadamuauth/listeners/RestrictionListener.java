@@ -14,7 +14,7 @@ import java.util.Set;
 
 public class RestrictionListener {
 
-    private static final Set<String> ALLOWED_COMMANDS = Set.of("login", "l", "register", "reg");
+    private static final Set<String> ALLOWED_COMMANDS = Set.of("login", "l", "register", "r", "reg");
 
     private final PluginConfig pluginConfig;
     private final SessionManager sessionManager;
