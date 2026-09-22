@@ -3,12 +3,14 @@ package mu.nada.nadamuauth.commands;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import mu.nada.nadamuauth.config.ConfigManager;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.storage.UserRepository;
 import mu.nada.nadamuauth.util.MessageService;
 import org.spongepowered.configurate.ConfigurateException;
 
 import java.util.List;
+import java.util.Map;
 
 public class AdminAuthCommand implements SimpleCommand {
 
@@ -31,16 +33,13 @@ public class AdminAuthCommand implements SimpleCommand {
     public void execute(Invocation invocation) {
         CommandSource source = invocation.source();
         if (!source.hasPermission("nadamuauth.admin")) {
-            source.sendMessage(messageService.parse("<red>У вас нет прав на использование этой команды!</red>"));
+            messageService.sendMessage(source, MessagesConfig::adminNoPermission);
             return;
         }
 
         String[] args = invocation.arguments();
         if (args.length == 0) {
-            source.sendMessage(messageService.parse("<yellow>Команды NadamuAuth:</yellow><br>"
-                    + "<aqua>/auth reload</aqua> - Перезагрузить конфигурацию<br>"
-                    + "<aqua>/auth unregister <ник></aqua> - Удалить аккаунт игрока<br>"
-                    + "<aqua>/auth setpremium <ник> <true|false></aqua> - Установить статус лицензии"));
+            messageService.sendMessage(source, MessagesConfig::adminHelp);
             return;
         }
 
@@ -50,32 +49,33 @@ public class AdminAuthCommand implements SimpleCommand {
             case "reload" -> {
                 try {
                     configManager.reload();
-                    source.sendMessage(messageService.parse("<green>Конфигурация и сообщения успешно перезагружены!</green>"));
+                    messageService.sendMessage(source, MessagesConfig::adminReloadSuccess);
                 } catch (ConfigurateException e) {
-                    source.sendMessage(messageService.parse("<red>Ошибка при перезагрузке конфигурации: " + e.getMessage() + "</red>"));
+                    messageService.sendMessage(source, MessagesConfig::adminReloadError,
+                            Map.of("error", e.getMessage() != null ? e.getMessage() : "unknown"));
                 }
             }
             case "unregister" -> {
                 if (args.length < 2) {
-                    source.sendMessage(messageService.parse("<yellow>Использование: /auth unregister <ник></yellow>"));
+                    messageService.sendMessage(source, MessagesConfig::adminUnregisterUsage);
                     return;
                 }
                 String targetName = args[1];
                 userRepository.findByUsername(targetName).thenAccept(optUser -> {
                     if (optUser.isEmpty()) {
-                        source.sendMessage(messageService.parse("<red>Пользователь " + targetName + " не найден в базе данных!</red>"));
+                        messageService.sendMessage(source, MessagesConfig::adminUserNotFound, Map.of("player", targetName));
                         return;
                     }
                     userRepository.delete(optUser.get().getUuid()).thenRun(() -> {
                         sessionManager.removePlayer(optUser.get().getUuid());
                         sessionManager.invalidateSession(optUser.get().getUuid());
-                        source.sendMessage(messageService.parse("<green>Аккаунт " + targetName + " успешно удалён!</green>"));
+                        messageService.sendMessage(source, MessagesConfig::adminUnregisterSuccess, Map.of("player", targetName));
                     });
                 });
             }
             case "setpremium" -> {
                 if (args.length < 3) {
-                    source.sendMessage(messageService.parse("<yellow>Использование: /auth setpremium <ник> <true|false></yellow>"));
+                    messageService.sendMessage(source, MessagesConfig::adminSetPremiumUsage);
                     return;
                 }
                 String targetName = args[1];
@@ -83,15 +83,16 @@ public class AdminAuthCommand implements SimpleCommand {
 
                 userRepository.findByUsername(targetName).thenAccept(optUser -> {
                     if (optUser.isEmpty()) {
-                        source.sendMessage(messageService.parse("<red>Пользователь " + targetName + " не найден в базе данных!</red>"));
+                        messageService.sendMessage(source, MessagesConfig::adminUserNotFound, Map.of("player", targetName));
                         return;
                     }
                     userRepository.setPremium(optUser.get().getUuid(), isPremium).thenRun(() -> {
-                        source.sendMessage(messageService.parse("<green>Статус лицензии для " + targetName + " изменён на: " + isPremium + "</green>"));
+                        messageService.sendMessage(source, MessagesConfig::adminSetPremiumSuccess,
+                                Map.of("player", targetName, "status", String.valueOf(isPremium)));
                     });
                 });
             }
-            default -> source.sendMessage(messageService.parse("<red>Неизвестная подкоманда! Введите /auth для справки.</red>"));
+            default -> messageService.sendMessage(source, MessagesConfig::adminUnknownSubcommand);
         }
     }
 

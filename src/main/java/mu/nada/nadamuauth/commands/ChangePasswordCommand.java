@@ -2,6 +2,7 @@ package mu.nada.nadamuauth.commands;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.service.AuthService;
 import mu.nada.nadamuauth.util.MessageService;
@@ -23,18 +24,18 @@ public class ChangePasswordCommand implements SimpleCommand {
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(messageService.parse("<red>Эта команда доступна только игрокам!</red>"));
+            invocation.source().sendMessage(messageService.getComponent(invocation.source(), MessagesConfig::onlyPlayers));
             return;
         }
 
         if (!sessionManager.isAuthenticated(player.getUniqueId())) {
-            messageService.sendMessage(player, messageService.config().loginRequired());
+            messageService.sendMessage(player, MessagesConfig::loginRequired);
             return;
         }
 
         String[] args = invocation.arguments();
         if (args.length < 2) {
-            messageService.sendMessage(player, "<yellow>Использование: <aqua>/changepassword <старыйПароль> <новыйПароль></aqua></yellow>");
+            messageService.sendMessage(player, MessagesConfig::changePasswordUsage);
             return;
         }
 
@@ -43,9 +44,9 @@ public class ChangePasswordCommand implements SimpleCommand {
 
         authService.changePassword(player, oldPassword, newPassword).thenAccept(success -> {
             if (success) {
-                messageService.sendMessage(player, messageService.config().passwordChanged());
+                messageService.sendMessage(player, MessagesConfig::passwordChanged);
             } else {
-                messageService.sendMessage(player, messageService.config().wrongOldPassword());
+                messageService.sendMessage(player, MessagesConfig::wrongOldPassword);
             }
         });
     }

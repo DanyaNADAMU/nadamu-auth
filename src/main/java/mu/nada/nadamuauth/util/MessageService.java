@@ -1,20 +1,22 @@
 package mu.nada.nadamuauth.util;
 
+import com.velocitypowered.api.command.CommandSource;
 import mu.nada.nadamuauth.config.MessagesConfig;
+import mu.nada.nadamuauth.i18n.LanguageManager;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 
 import java.util.Map;
+import java.util.function.Function;
 
 public class MessageService {
 
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
-    private final MessagesConfig messagesConfig;
+    private final LanguageManager languageManager;
 
-    public MessageService(MessagesConfig messagesConfig) {
-        this.messagesConfig = messagesConfig;
+    public MessageService(LanguageManager languageManager) {
+        this.languageManager = languageManager;
     }
 
     public Component parse(String rawText) {
@@ -23,37 +25,51 @@ public class MessageService {
 
     public Component parse(String rawText, Map<String, String> placeholders) {
         String result = rawText;
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace("{" + entry.getKey() + "}", entry.getValue());
+        if (placeholders != null) {
+            for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+                result = result.replace("{" + entry.getKey() + "}", entry.getValue());
+            }
         }
         return miniMessage.deserialize(result);
     }
 
-    public Component withPrefix(String rawText) {
-        return miniMessage.deserialize(messagesConfig.prefix() + rawText);
+    public Component getComponent(CommandSource source, Function<MessagesConfig, String> messageSelector) {
+        return getComponent(source, messageSelector, Map.of());
     }
 
-    public Component withPrefix(String rawText, Map<String, String> placeholders) {
-        String result = rawText;
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace("{" + entry.getKey() + "}", entry.getValue());
-        }
-        return miniMessage.deserialize(messagesConfig.prefix() + result);
+    public Component getComponent(CommandSource source, Function<MessagesConfig, String> messageSelector, Map<String, String> placeholders) {
+        MessagesConfig config = languageManager.getMessages(source);
+        String template = messageSelector.apply(config);
+        return parse(config.prefix() + template, placeholders);
     }
 
-    public void sendMessage(Audience audience, String rawText) {
-        audience.sendMessage(withPrefix(rawText));
+    public Component getRawComponent(CommandSource source, Function<MessagesConfig, String> messageSelector) {
+        return getRawComponent(source, messageSelector, Map.of());
     }
 
-    public void sendMessage(Audience audience, String rawText, Map<String, String> placeholders) {
-        audience.sendMessage(withPrefix(rawText, placeholders));
+    public Component getRawComponent(CommandSource source, Function<MessagesConfig, String> messageSelector, Map<String, String> placeholders) {
+        MessagesConfig config = languageManager.getMessages(source);
+        String template = messageSelector.apply(config);
+        return parse(template, placeholders);
+    }
+
+    public void sendMessage(CommandSource source, Function<MessagesConfig, String> messageSelector) {
+        source.sendMessage(getComponent(source, messageSelector));
+    }
+
+    public void sendMessage(CommandSource source, Function<MessagesConfig, String> messageSelector, Map<String, String> placeholders) {
+        source.sendMessage(getComponent(source, messageSelector, placeholders));
     }
 
     public void sendRawMessage(Audience audience, String rawText) {
         audience.sendMessage(parse(rawText));
     }
 
-    public MessagesConfig config() {
-        return messagesConfig;
+    public LanguageManager getLanguageManager() {
+        return languageManager;
+    }
+
+    public MessagesConfig getDefaultConfig() {
+        return languageManager.getDefaultMessages();
     }
 }

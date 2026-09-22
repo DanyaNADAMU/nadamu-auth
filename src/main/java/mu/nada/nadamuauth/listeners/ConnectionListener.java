@@ -12,6 +12,7 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.scheduler.ScheduledTask;
 import mu.nada.nadamuauth.NadamuAuthPlugin;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.config.PluginConfig;
 import mu.nada.nadamuauth.model.AuthState;
 import mu.nada.nadamuauth.security.SessionManager;
@@ -86,7 +87,7 @@ public class ConnectionListener {
         // Notify about failed /premium verification if any
         if (sessionManager.hasFailedNotice(username)) {
             sessionManager.clearFailedNotice(username);
-            messageService.sendMessage(player, messageService.config().premiumFailed());
+            messageService.sendMessage(player, MessagesConfig::premiumFailed);
         }
 
         // If player connected with licensed client and had pending /premium verification
@@ -98,7 +99,7 @@ public class ConnectionListener {
                 }
             });
             sessionManager.setAuthState(player.getUniqueId(), AuthState.AUTHENTICATED);
-            messageService.sendMessage(player, messageService.config().premiumSuccess());
+            messageService.sendMessage(player, MessagesConfig::premiumSuccess);
         }
     }
 
@@ -140,13 +141,13 @@ public class ConnectionListener {
                 // Registered player -> route to NanoLimbo for /login
                 sessionManager.setAuthState(uuid, AuthState.PENDING_LOGIN);
                 server.getServer(authServer).ifPresent(event::setInitialServer);
-                messageService.sendMessage(player, messageService.config().loginRequired());
+                messageService.sendMessage(player, MessagesConfig::loginRequired);
                 scheduleLoginTimeout(player);
             } else {
                 // Unregistered player -> Variant A (Guest mode, route to destination)
                 sessionManager.setAuthState(uuid, AuthState.GUEST);
                 server.getServer(destination).ifPresent(event::setInitialServer);
-                messageService.sendMessage(player, messageService.config().guestReminder());
+                messageService.sendMessage(player, MessagesConfig::guestReminder);
             }
         }));
     }
@@ -170,7 +171,7 @@ public class ConnectionListener {
         int timeout = pluginConfig.security().loginTimeoutSeconds();
         ScheduledTask task = server.getScheduler().buildTask(plugin, () -> {
             if (player.isActive() && sessionManager.getAuthState(player.getUniqueId()) == AuthState.PENDING_LOGIN) {
-                player.disconnect(messageService.parse(messageService.config().timeoutKick()));
+                player.disconnect(messageService.getComponent(player, MessagesConfig::timeoutKick));
             }
         }).delay(Duration.ofSeconds(timeout)).schedule();
         sessionManager.setTimeoutTask(player.getUniqueId(), task);

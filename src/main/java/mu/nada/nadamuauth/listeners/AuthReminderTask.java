@@ -2,6 +2,7 @@ package mu.nada.nadamuauth.listeners;
 
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.model.AuthState;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.util.MessageService;
@@ -24,9 +25,9 @@ public class AuthReminderTask implements Runnable {
             AuthState state = sessionManager.getAuthState(player.getUniqueId());
 
             if (state == AuthState.GUEST) {
-                messageService.sendMessage(player, messageService.config().guestReminder());
+                messageService.sendMessage(player, MessagesConfig::guestReminder);
             } else if (state == AuthState.PENDING_LOGIN) {
-                messageService.sendMessage(player, messageService.config().loginRequired());
+                messageService.sendMessage(player, MessagesConfig::loginRequired);
             }
         }
     }

@@ -13,6 +13,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import mu.nada.nadamuauth.commands.*;
 import mu.nada.nadamuauth.config.ConfigManager;
 import mu.nada.nadamuauth.config.PluginConfig;
+import mu.nada.nadamuauth.i18n.LanguageManager;
 import mu.nada.nadamuauth.listeners.AuthReminderTask;
 import mu.nada.nadamuauth.listeners.ConnectionListener;
 import mu.nada.nadamuauth.listeners.RestrictionListener;
@@ -65,7 +66,8 @@ public class NadamuAuthPlugin {
         logger.info("Initializing NadamuAuth...");
 
         // 1. Configuration and messages
-        this.configManager = new ConfigManager(dataDirectory, logger);
+        LanguageManager languageManager = new LanguageManager(dataDirectory, logger);
+        this.configManager = new ConfigManager(dataDirectory, languageManager, logger);
         try {
             this.configManager.reload();
             logger.info("Configuration loaded successfully.");
@@ -75,7 +77,7 @@ public class NadamuAuthPlugin {
         }
 
         PluginConfig config = configManager.config();
-        this.messageService = new MessageService(configManager.messages());
+        this.messageService = new MessageService(languageManager);
 
         // 2. Database and repository initialization
         this.databaseManager = new DatabaseManager(dataDirectory, config.database(), logger);
@@ -197,6 +199,10 @@ public class NadamuAuthPlugin {
 
     public MessageService getMessageService() {
         return messageService;
+    }
+
+    public mu.nada.nadamuauth.i18n.LanguageManager getLanguageManager() {
+        return configManager != null ? configManager.languageManager() : null;
     }
 
     public SessionManager getSessionManager() {

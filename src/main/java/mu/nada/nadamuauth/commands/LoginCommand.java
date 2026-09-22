@@ -2,8 +2,7 @@ package mu.nada.nadamuauth.commands;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
-import com.velocitypowered.api.proxy.ProxyServer;
-import mu.nada.nadamuauth.config.PluginConfig;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.security.RateLimiter;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.service.AuthResult;
@@ -37,18 +36,18 @@ public class LoginCommand implements SimpleCommand {
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(messageService.parse("<red>Эта команда доступна только игрокам!</red>"));
+            invocation.source().sendMessage(messageService.getComponent(invocation.source(), MessagesConfig::onlyPlayers));
             return;
         }
 
         if (sessionManager.isAuthenticated(player.getUniqueId())) {
-            messageService.sendMessage(player, messageService.config().alreadyLoggedIn());
+            messageService.sendMessage(player, MessagesConfig::alreadyLoggedIn);
             return;
         }
 
         String[] args = invocation.arguments();
         if (args.length < 1) {
-            messageService.sendMessage(player, messageService.config().loginRequired());
+            messageService.sendMessage(player, MessagesConfig::loginRequired);
             return;
         }
 
@@ -57,18 +56,18 @@ public class LoginCommand implements SimpleCommand {
 
         authService.authenticate(player, password).thenAccept(result -> {
             if (result == AuthResult.SUCCESS) {
-                messageService.sendMessage(player, messageService.config().loginSuccess());
+                messageService.sendMessage(player, MessagesConfig::loginSuccess);
                 routingService.routeAfterAuth(player);
             } else if (result == AuthResult.INVALID_CREDENTIALS) {
                 int left = rateLimiter.getRemainingAttempts(ip, player.getUsername());
-                messageService.sendMessage(player, messageService.config().wrongPassword(), Map.of("left", String.valueOf(left)));
+                messageService.sendMessage(player, MessagesConfig::wrongPassword, Map.of("left", String.valueOf(left)));
             } else if (result == AuthResult.RATE_LIMITED) {
-                messageService.sendMessage(player, messageService.config().lockoutMessage(),
+                messageService.sendMessage(player, MessagesConfig::lockoutMessage,
                         Map.of("minutes", String.valueOf(rateLimiter.getLockoutMinutes())));
             } else if (result == AuthResult.ACCOUNT_NOT_FOUND) {
-                messageService.sendMessage(player, messageService.config().guestReminder());
+                messageService.sendMessage(player, MessagesConfig::guestReminder);
             } else {
-                messageService.sendMessage(player, "<red>Произошла внутренняя ошибка при авторизации. Попробуйте позже.</red>");
+                messageService.sendMessage(player, MessagesConfig::internalError);
             }
         });
     }

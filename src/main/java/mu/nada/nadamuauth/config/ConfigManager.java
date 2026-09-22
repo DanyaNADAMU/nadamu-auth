@@ -1,5 +1,6 @@
 package mu.nada.nadamuauth.config;
 
+import mu.nada.nadamuauth.i18n.LanguageManager;
 import org.slf4j.Logger;
 import org.spongepowered.configurate.CommentedConfigurationNode;
 import org.spongepowered.configurate.ConfigurateException;
@@ -13,19 +14,21 @@ import java.nio.file.Path;
 public class ConfigManager {
 
     private final Path dataDirectory;
+    private final LanguageManager languageManager;
     private final Logger logger;
 
     private PluginConfig config;
-    private MessagesConfig messages;
-
     private final Path configPath;
-    private final Path messagesPath;
 
     public ConfigManager(Path dataDirectory, Logger logger) {
+        this(dataDirectory, new LanguageManager(dataDirectory, logger), logger);
+    }
+
+    public ConfigManager(Path dataDirectory, LanguageManager languageManager, Logger logger) {
         this.dataDirectory = dataDirectory;
+        this.languageManager = languageManager;
         this.logger = logger;
         this.configPath = dataDirectory.resolve("config.yml");
-        this.messagesPath = dataDirectory.resolve("messages.yml");
     }
 
     public void reload() throws ConfigurateException {
@@ -38,7 +41,7 @@ public class ConfigManager {
         }
 
         this.config = loadConfigFile(configPath, PluginConfig.class, new PluginConfig());
-        this.messages = loadConfigFile(messagesPath, MessagesConfig.class, new MessagesConfig());
+        this.languageManager.reload(this.config.localization().defaultLanguage());
     }
 
     private <T> T loadConfigFile(Path path, Class<T> clazz, T defaultInstance) throws ConfigurateException {
@@ -64,7 +67,7 @@ public class ConfigManager {
         return config;
     }
 
-    public MessagesConfig messages() {
-        return messages;
+    public LanguageManager languageManager() {
+        return languageManager;
     }
 }

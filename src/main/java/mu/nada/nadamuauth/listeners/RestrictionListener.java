@@ -5,6 +5,7 @@ import com.velocitypowered.api.event.command.CommandExecuteEvent;
 import com.velocitypowered.api.event.player.PlayerChatEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.proxy.Player;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.config.PluginConfig;
 import mu.nada.nadamuauth.model.AuthState;
 import mu.nada.nadamuauth.security.SessionManager;
@@ -55,7 +56,7 @@ public class RestrictionListener {
 
             if (!ALLOWED_COMMANDS.contains(baseCmd)) {
                 event.setResult(CommandExecuteEvent.CommandResult.denied());
-                messageService.sendMessage(player, messageService.config().loginRequired());
+                messageService.sendMessage(player, MessagesConfig::loginRequired);
             }
         }
     }
@@ -67,7 +68,7 @@ public class RestrictionListener {
 
         if (state == AuthState.PENDING_LOGIN) {
             event.setResult(PlayerChatEvent.ChatResult.denied());
-            messageService.sendMessage(player, messageService.config().loginRequired());
+            messageService.sendMessage(player, MessagesConfig::loginRequired);
         }
     }
 }

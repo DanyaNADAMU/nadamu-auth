@@ -21,6 +21,9 @@ public class PluginConfig {
     @Comment("Настройки проверки лицензии (/premium)")
     private PremiumSettings premium = new PremiumSettings();
 
+    @Comment("Настройки локализации и языков")
+    private LocalizationSettings localization = new LocalizationSettings();
+
     public ServerSettings servers() {
         return servers;
     }
@@ -39,6 +42,20 @@ public class PluginConfig {
 
     public PremiumSettings premium() {
         return premium;
+    }
+
+    public LocalizationSettings localization() {
+        return localization;
+    }
+
+    @ConfigSerializable
+    public static class LocalizationSettings {
+        @Comment("Язык по умолчанию, если язык клиента не найден в languages/ (например: ru, en)")
+        private String defaultLanguage = "ru";
+
+        public String defaultLanguage() {
+            return defaultLanguage;
+        }
     }
 
     @ConfigSerializable

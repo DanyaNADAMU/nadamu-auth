@@ -2,6 +2,7 @@ package mu.nada.nadamuauth.commands;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
+import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.config.PluginConfig;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.util.MessageService;
@@ -25,17 +26,17 @@ public class PremiumCommand implements SimpleCommand {
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(messageService.parse("<red>Эта команда доступна только игрокам!</red>"));
+            invocation.source().sendMessage(messageService.getComponent(invocation.source(), MessagesConfig::onlyPlayers));
             return;
         }
 
         if (!pluginConfig.premium().enabled()) {
-            messageService.sendMessage(player, "<red>Поддержка лицензий Mojang временно отключена администратором.</red>");
+            messageService.sendMessage(player, MessagesConfig::premiumDisabled);
             return;
         }
 
         if (player.isOnlineMode()) {
-            messageService.sendMessage(player, "<green>Вы уже успешно играете через подтверждённую лицензию Mojang!</green>");
+            messageService.sendMessage(player, MessagesConfig::premiumAlreadyActive);
             return;
         }
 
@@ -44,14 +45,14 @@ public class PremiumCommand implements SimpleCommand {
         int attempts = pluginConfig.premium().maxFailedAttempts();
 
         if (args.length == 0 || !args[0].equalsIgnoreCase("confirm")) {
-            messageService.sendMessage(player, messageService.config().premiumPrompt(),
+            messageService.sendMessage(player, MessagesConfig::premiumPrompt,
                     Map.of("minutes", String.valueOf(timeout), "attempts", String.valueOf(attempts)));
             return;
         }
 
         // Player executed /premium confirm
         sessionManager.startPremiumVerification(player.getUsername(), timeout);
-        messageService.sendMessage(player, "<green>Заявка создана! Пожалуйста, перезайдите на сервер с лицензионного лаунчера в течение "
-                + timeout + " минут (у вас " + attempts + " попытки).</green>");
+        messageService.sendMessage(player, MessagesConfig::premiumStarted,
+                Map.of("minutes", String.valueOf(timeout), "attempts", String.valueOf(attempts)));
     }
 }
