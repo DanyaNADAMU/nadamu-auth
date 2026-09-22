@@ -115,7 +115,10 @@ public class NadamuAuthPlugin {
         // 6. Register proxy commands
         registerCommands(config);
 
-        // 7. Background reminder task (for guests and pending logins)
+        // 7. Validate configured servers
+        validateServerConfig(config);
+
+        // 8. Background reminder task (for guests and pending logins)
         int reminderInterval = config.guest().reminderIntervalSeconds();
         server.getScheduler()
                 .buildTask(this, new AuthReminderTask(server, sessionManager, messageService))
@@ -142,6 +145,25 @@ public class NadamuAuthPlugin {
 
         CommandMeta adminMeta = cm.metaBuilder("auth").aliases("nauth").plugin(this).build();
         cm.register(adminMeta, new AdminAuthCommand(configManager, userRepository, sessionManager, messageService));
+    }
+
+    private void validateServerConfig(PluginConfig config) {
+        String authServer = config.servers().authServer();
+        String lobbyServer = config.servers().lobbyServer();
+
+        if (server.getServer(authServer).isEmpty()) {
+            logger.warn("Configured authServer '{}' is not registered in velocity.toml! Available servers: {}",
+                    authServer, server.getAllServers().stream().map(s -> s.getServerInfo().getName()).toList());
+        }
+
+        if (server.getServer(lobbyServer).isEmpty()) {
+            logger.warn("Configured lobbyServer '{}' is not registered in velocity.toml! Available servers: {}",
+                    lobbyServer, server.getAllServers().stream().map(s -> s.getServerInfo().getName()).toList());
+        }
+
+        if (authServer.equalsIgnoreCase(lobbyServer)) {
+            logger.info("authServer is set to lobbyServer ('{}'). Running in single-server authentication mode.", authServer);
+        }
     }
 
     @Subscribe

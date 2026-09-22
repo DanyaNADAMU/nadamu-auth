@@ -61,10 +61,15 @@ public class LoginCommand implements SimpleCommand {
             if (result == AuthResult.SUCCESS) {
                 messageService.sendMessage(player, messageService.config().loginSuccess());
 
-                // Redirect player to the main backend server (Lobby)
-                server.getServer(pluginConfig.servers().lobbyServer()).ifPresent(targetServer -> {
-                    player.createConnectionRequest(targetServer).connectWithIndication();
-                });
+                String authServer = pluginConfig.servers().authServer();
+                String lobbyServer = pluginConfig.servers().lobbyServer();
+
+                // Only transfer if authServer and lobbyServer are distinct servers
+                if (!authServer.equalsIgnoreCase(lobbyServer)) {
+                    server.getServer(lobbyServer).ifPresent(targetServer -> {
+                        player.createConnectionRequest(targetServer).connectWithIndication();
+                    });
+                }
             } else if (result == AuthResult.INVALID_CREDENTIALS) {
                 int left = rateLimiter.getRemainingAttempts(ip, player.getUsername());
                 messageService.sendMessage(player, messageService.config().wrongPassword(), Map.of("left", String.valueOf(left)));

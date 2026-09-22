@@ -56,10 +56,15 @@ public class RegisterCommand implements SimpleCommand {
             if (result == RegistrationResult.SUCCESS) {
                 messageService.sendMessage(player, messageService.config().registerSuccess());
 
-                // If player was on NanoLimbo, transfer to the main lobby server
-                server.getServer(pluginConfig.servers().lobbyServer()).ifPresent(targetServer -> {
-                    player.createConnectionRequest(targetServer).connectWithIndication();
-                });
+                String authServer = pluginConfig.servers().authServer();
+                String lobbyServer = pluginConfig.servers().lobbyServer();
+
+                // Only transfer if authServer and lobbyServer are distinct servers
+                if (!authServer.equalsIgnoreCase(lobbyServer)) {
+                    server.getServer(lobbyServer).ifPresent(targetServer -> {
+                        player.createConnectionRequest(targetServer).connectWithIndication();
+                    });
+                }
             } else if (result == RegistrationResult.ALREADY_REGISTERED) {
                 messageService.sendMessage(player, messageService.config().alreadyRegistered());
             } else if (result == RegistrationResult.PASSWORDS_DO_NOT_MATCH) {
