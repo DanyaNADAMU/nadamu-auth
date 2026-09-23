@@ -15,6 +15,7 @@ import mu.nada.nadamuauth.NadamuAuthPlugin;
 import mu.nada.nadamuauth.config.MessagesConfig;
 import mu.nada.nadamuauth.config.PluginConfig;
 import mu.nada.nadamuauth.model.AuthState;
+import mu.nada.nadamuauth.model.UserAccount;
 import mu.nada.nadamuauth.security.SessionManager;
 import mu.nada.nadamuauth.service.RoutingService;
 import mu.nada.nadamuauth.storage.UserRepository;
@@ -22,6 +23,7 @@ import mu.nada.nadamuauth.util.MessageService;
 
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 public class ConnectionListener {
@@ -93,13 +95,33 @@ public class ConnectionListener {
         // If player connected with licensed client and had pending /premium verification
         if (player.isOnlineMode() && sessionManager.hasPendingPremium(username)) {
             sessionManager.clearPendingPremium(username);
+            String ip = extractIp(player);
             userRepository.findByUsername(username).thenAccept(optUser -> {
                 if (optUser.isPresent()) {
                     userRepository.setPremium(optUser.get().getUuid(), true);
+                    userRepository.updateLastLogin(optUser.get().getUuid(), ip);
+                } else {
+                    // Guest confirmed premium directly: create permanent premium account
+                    UserAccount newAccount = new UserAccount(
+                            player.getUniqueId(),
+                            player.getUsername(),
+                            "",
+                            ip,
+                            Instant.now(),
+                            Instant.now(),
+                            true
+                    );
+                    userRepository.create(newAccount);
                 }
             });
             sessionManager.setAuthState(player.getUniqueId(), AuthState.AUTHENTICATED);
             messageService.sendMessage(player, MessagesConfig::premiumSuccess);
+        } else if (player.isOnlineMode()) {
+            // Confirmed Mojang player: update last login IP & timestamp
+            String ip = extractIp(player);
+            userRepository.findByUsername(username).thenAccept(optUser -> {
+                optUser.ifPresent(u -> userRepository.updateLastLogin(u.getUuid(), ip));
+            });
         }
     }
 
@@ -128,7 +150,7 @@ public class ConnectionListener {
             return EventTask.async(() -> {});
         }
 
-        // If valid session exists for current IP
+        // If valid in-memory session exists for current IP
         if (sessionManager.hasValidSession(uuid, ip)) {
             sessionManager.setAuthState(uuid, AuthState.AUTHENTICATED);
             server.getServer(destination).ifPresent(event::setInitialServer);
@@ -138,6 +160,17 @@ public class ConnectionListener {
         // Query database
         return EventTask.resumeWhenComplete(userRepository.findByUsername(player.getUsername()).thenAccept(optUser -> {
             if (optUser.isPresent()) {
+                UserAccount user = optUser.get();
+
+                // Check persistent IP session for password-based players
+                if (!user.isPremium() && isSessionValid(user, ip)) {
+                    sessionManager.setAuthState(uuid, AuthState.AUTHENTICATED);
+                    sessionManager.saveSession(uuid, ip);
+                    userRepository.updateLastLogin(user.getUuid(), ip);
+                    server.getServer(destination).ifPresent(event::setInitialServer);
+                    return;
+                }
+
                 // Registered player -> route to NanoLimbo for /login
                 sessionManager.setAuthState(uuid, AuthState.PENDING_LOGIN);
                 server.getServer(authServer).ifPresent(event::setInitialServer);
@@ -183,5 +216,20 @@ public class ConnectionListener {
             return "127.0.0.1";
         }
         return remoteAddress.getAddress().getHostAddress();
+    }
+
+    private boolean isSessionValid(UserAccount user, String currentIp) {
+        int timeoutMinutes = pluginConfig.security().sessionTimeoutMinutes();
+        if (timeoutMinutes <= 0) {
+            return false;
+        }
+        if (user.getLastIp() == null || !user.getLastIp().equals(currentIp)) {
+            return false;
+        }
+        if (user.getLastLoginAt() == null) {
+            return false;
+        }
+        Instant expiresAt = user.getLastLoginAt().plus(Duration.ofMinutes(timeoutMinutes));
+        return Instant.now().isBefore(expiresAt);
     }
 }
