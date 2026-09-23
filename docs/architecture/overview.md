@@ -1,6 +1,6 @@
 # System Architecture Overview
 
-`NadamuAuth` is a proxy-level authentication plugin designed for Velocity 4.0+.
+`NadamuAuth` is a high-performance proxy-level authentication plugin designed for Velocity 4.0+.
 
 ## High-Level Topology
 
@@ -11,6 +11,9 @@ graph TD
     subgraph Proxy Layer
         Velocity --> SessionMgr[SessionManager]
         Velocity --> RateLimiter[RateLimiter]
+        Velocity --> RoutingSvc[RoutingService]
+        Velocity --> LangMgr[LanguageManager]
+        Velocity --> MsgSvc[MessageService]
         Velocity --> AuthService[AuthService Interface]
         AuthService --> LocalAuth[LocalAuthService]
         LocalAuth --> UserRepo[UserRepository]
@@ -19,7 +22,7 @@ graph TD
 
     subgraph Backend Servers
         Velocity -->|PENDING_LOGIN| NanoLimbo[NanoLimbo Server]
-        Velocity -->|AUTHENTICATED or GUEST| Lobby[Lobby / Hub Server]
+        Velocity -->|AUTHENTICATED or GUEST| TargetServer[Target Server / Lobby]
     end
 ```
 
@@ -39,25 +42,30 @@ stateDiagram-v2
         CheckDB --> ForceOffline: is_premium == false -> forceOfflineMode
     }
 
-    OnlineModeCheck --> ChooseInitialServer: PlayerChooseInitialServerEvent
+    OnlineModeCheck --> ChooseInitialServer: PlayerChooseInitialServerEvent (PostOrder.LATE)
 
     state ChooseInitialServer {
-        [*] --> CheckAuth: isOnlineMode OR Valid IP Session?
-        CheckAuth --> RouteLobby: Yes -> AUTHENTICATED -> Lobby
+        [*] --> CaptureTarget: Capture forced-hosts destination
+        CaptureTarget --> CheckAuth: isOnlineMode OR Valid IP Session?
+        CheckAuth --> RouteTarget: Yes -> AUTHENTICATED -> Target / Lobby
         CheckAuth --> CheckRegistered: No -> Registered in DB?
-        CheckRegistered --> RouteLimbo: Yes -> PENDING_LOGIN -> NanoLimbo
-        CheckRegistered --> RouteGuest: No -> GUEST -> Lobby
+        CheckRegistered --> CheckDbSession: Yes -> Valid DB IP Session?
+        CheckDbSession --> RouteTarget: Yes -> AUTHENTICATED -> Target / Lobby
+        CheckDbSession --> RouteLimbo: No -> PENDING_LOGIN -> NanoLimbo
+        CheckRegistered --> RouteGuest: No -> GUEST -> Target / Lobby
     }
 
     RouteLimbo --> WaitLogin: /login <password>
-    WaitLogin --> RouteLobby: Success -> Lobby
+    WaitLogin --> RouteTarget: Success -> Target / Lobby
 ```
 
 ## Component Breakdown
 
-1. **`NadamuAuthPlugin`**: Central lifecycle and dependency injector for proxy events and commands.
-2. **`SessionManager`**: In-memory state tracking (`GUEST`, `PENDING_LOGIN`, `AUTHENTICATED`), IP-based session cache via Caffeine, and pending `/premium` request tracking.
-3. **`RateLimiter`**: Sliding-window attempt tracking per IP and username to mitigate brute-force password guessing.
-4. **`LocalAuthService`**: Concrete implementation of `AuthService` handling password verification and account creation.
-5. **`DatabaseManager` & `UserRepository`**: Asynchronous persistence layer backed by H2 and HikariCP.
-6. **`ConnectionListener` & `RestrictionListener`**: Velocity event interceptors enforcing chat, command, and server transfer restrictions.
+1. **`NadamuAuthPlugin`**: Central lifecycle coordinator and dependency injector for proxy events and commands.
+2. **`RoutingService`**: Manages player destination resolution, preserving `forced-hosts` (e.g. `pvp.example.com`) across authentication while enforcing safe fallback to `lobbyServer`.
+3. **`SessionManager`**: In-memory state tracking (`GUEST`, `PENDING_LOGIN`, `AUTHENTICATED`), login timeout cancellation, and pending `/premium` request tracking.
+4. **`RateLimiter`**: Sliding-window attempt tracking per IP and username to mitigate brute-force password attacks.
+5. **`LanguageManager` & `MessageService`**: Dynamic multi-language dictionary loading (`languages/*.yml`), client locale auto-detection, and Adventure MiniMessage rendering with interactive components.
+6. **`LocalAuthService`**: Implementation of `AuthService` handling password verification, registration, and BCrypt hashing.
+7. **`DatabaseManager` & `UserRepository`**: Asynchronous persistence layer backed by embedded pure Java H2 and HikariCP connection pooling, providing persistent IP session lookup and guest-to-premium account creation.
+8. **`ConnectionListener` & `RestrictionListener`**: Velocity event interceptors enforcing strict NanoLimbo isolation (command whitelist `/login`, `/l`, `/register`, `/r`, `/reg` and chat suppression), timeout management, and seamless post-auth routing.
